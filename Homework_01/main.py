@@ -1,4 +1,5 @@
 import heapq
+import math
 
 
 class Board:
@@ -63,32 +64,89 @@ class Board:
         return f"Board(Heuristic={self.heuristic})"
 
 
-def initialize_board_and_targets(n, k, board):
+def is_solvable(board, rows, empty_row, target_empty_row):
+    """
+    Check if a puzzle is solvable based on the number of inversions.
+    """
+    flat_list = [tile for row in board for tile in row if tile != 0]
+    inversions = 0
+    for i in range(len(flat_list)):
+        for j in range(i + 1, len(flat_list)):
+            if flat_list[i] > flat_list[j]:
+                inversions += 1
+    # If the grid width is odd, return true if the number of inversions is even.
+    if rows & 1:
+        return inversions % 2 == 0
+    else:
+        # If the grid width is even, the puzzle is solvable if:
+        # - the blank is on an even row counting from the bottom and the number of inversions is odd, or
+        # - the blank is on an odd row counting from the bottom and the number of inversions is even.
+        empty_row_index = target_empty_row - empty_row - 1
+        return (inversions % 2 == 0) if (empty_row_index % 2 == 1) else (inversions % 2 == 1)
+
+
+def initialize_board_and_targets(rows, cols, k, board):
     """
     Initialize the target positions of all tiles, and return the dictionary of targets,
     the initial zero position, and the target zero position.
     """
-    rows = cols = len(board)
     initial_empty_position = None
-    target_zero_position = (k // rows, k % rows) if not k == -1 else (rows - 1, rows - 1)
+    target_empty_position = (k // rows, k % rows) if not k == -1 else (rows - 1, rows - 1)
     target_positions = {}
     tile_num = 1
 
     for row in range(rows):
         for col in range(cols):
             if board[row][col] == 0:
-                initial_empty_position = (row, col)  # Store the initial zero position
-            if (row, col) != target_zero_position:
+                initial_empty_position = (row, col)  # Store the initial empty position
+            if (row, col) != target_empty_position:
                 target_positions[tile_num] = (row, col)
                 tile_num += 1
-    target_positions[0] = target_zero_position  # Add the target position for zero tile
+    target_positions[0] = target_empty_position  # Add the target position for empty tile
 
-    return rows, cols, target_positions, initial_empty_position
+    return target_positions, initial_empty_position
 
 
-def solve_puzzle(board):
+def search(board, bound, directions):
     """
-    Solve the puzzle using a heuristic-based search (A* like approach).
+    Iterative DFS function using a stack with bounded f-cost.
+    """
+    # Stack contains tuples of (board, g, path)
+    stack = [(board, 0, [])]  # g = 0 at the start, path is empty
+
+    min_cost = float('inf')
+
+    while stack:
+        current_board, g, path = stack.pop()
+
+        f = g + current_board.heuristic
+
+        # If f exceeds the bound, update the minimum cost seen
+        if f > bound:
+            min_cost = min(min_cost, f)
+            continue
+
+        # If the goal is reached, return the solution
+        if current_board.heuristic == 0:
+            return True, path
+
+        # Expand the current board and push neighbors onto the stack
+        for (x, y), direction in directions.items():
+            new_row, new_col = current_board.empty_position[0] + x, current_board.empty_position[1] + y
+
+            if current_board.can_move(new_row, new_col):
+                new_empty_position = (new_row, new_col)
+                new_board = current_board.move_tile(new_empty_position)
+
+                # Push the new board state onto the stack
+                stack.append((new_board, g + 1, path + [direction]))
+
+    return min_cost, None
+
+
+def solve_puzzle_ida_star(board):
+    """
+    Solve the puzzle using IDA* (Iterative Deepening A*) with an explicit stack.
     """
     directions = {
         (0, 1): 'left',
@@ -97,56 +155,46 @@ def solve_puzzle(board):
         (0, -1): 'right'
     }
 
-    boards = []
-    path = []  # List to store the sequence of moves
-    heapq.heappush(boards, (board, ''))  # Add current board and direction
+    # Start IDA* with the initial bound equal to the heuristic value of the initial board
+    bound = board.heuristic
 
-    moves = 0
-    while boards:
-        # Pop the board with the lowest heuristic
-        curr_board, last_move = heapq.heappop(boards)
+    while True:
+        result, path = search(board, bound, directions)
 
-        print(f"Move {moves}: {last_move}")
-        curr_board.print_board()
-        # If the heuristic is 0, we have solved the puzzle
-        if curr_board.heuristic == 0:
-            path.append(last_move)  # Include the last move in the path
-            return moves, path
+        if result is True:  # Solution found
+            return path
 
-        if last_move:  # Skip adding the first move which is an empty string
-            path.append(last_move)
+        if result == float('inf'):  # No solution exists
+            return None
 
-        moves += 1
-        for x, y in directions.keys():
-            new_row, new_col = curr_board.empty_position[0] + x, curr_board.empty_position[1] + y
-            if curr_board.can_move(new_row, new_col):
-                new_empty_position = (new_row, new_col)
-                new_board = curr_board.move_tile(new_empty_position)
-                heapq.heappush(boards, (new_board, directions[(x, y)]))
+        # Increase bound to the minimum f-cost encountered during the last iteration
+        bound = result
 
 
 def main():
     # Example board setup
-    n = 15
-    k = 0
-    initial_board = [[1, 2, 3, 0],
-                     [4, 5, 6, 7],
-                     [8, 9, 10, 11],
-                     [12, 13, 14, 15]]
+    n = int(input("Enter N: "))
+    k = int(input("Enter K: "))
+    initial_board = []
 
-    rows, cols, target_positions, initial_zero_position = initialize_board_and_targets(n, k, initial_board)
-
+    rows = cols = int(math.sqrt(n + 1))
+    for _ in range(rows):
+        initial_board.append((list(map(int, input().split()))))
+    target_positions, initial_zero_position = initialize_board_and_targets(rows, cols, k, initial_board)
     board = Board(initial_board, target_positions, initial_zero_position)
-
-    # Solve the puzzle
-    moves, path = solve_puzzle(board)
+    if not is_solvable(board.board, rows, initial_zero_position[0], target_positions[0][0]):
+        print(-1)
+        print("Not solvable")
+        return
+    # Solve the puzzle using IDA*
+    path = solve_puzzle_ida_star(board)
 
     if path:
-        print(f"Solved in {moves} moves.")
-        for move in path:
-            print(move)
+        print(len(path))
+        for p in path:
+            print(p)
     else:
-        print("No solution was found.")
+        print(-1)
 
 
 if __name__ == '__main__':
