@@ -1,198 +1,158 @@
-import heapq
 import math
 
 
 class Board:
-    """
-    Class to represent and manage the puzzle board.
-    """
+    def __init__(self, board, empty_pos, heuristic, move=None, depth=0):
+        self.board = board  # Flat list representing the board
+        self.empty_pos = empty_pos  # Index of the empty tile (0)
+        self.heuristic = heuristic  # Current heuristic value (Manhattan distance)
+        self.move = move  # Move that led to this state ('up', 'down', 'left', 'right')
+        self.depth = depth  # Depth in the search tree (g value)
+        self.size = int(math.sqrt(len(board)))  # Board dimensions (assuming square)
 
-    def __init__(self, board, target_positions, empty_position):
-        self.board = board  # The current state of the puzzle board
-        self.target_positions = target_positions  # Dictionary with target positions of tiles
-        self.empty_position = empty_position  # Original position of the empty tile (0)
-        self.rows = len(board)  # Number of rows (assumes square board)
-        self.cols = len(board[0]) if board else 0  # Number of columns
-        self.heuristic = self.calculate_heuristic()  # Calculate and store the heuristic upon initialization
-
-    def calculate_heuristic(self):
+    def manhattan_distance(self, pos1, pos2):
         """
-        Calculate the heuristic (Manhattan distance) for the current board state.
+        Calculate Manhattan distance between two positions on the board.
         """
-        heuristic = 0
-        for row in range(self.rows):
-            for col in range(self.cols):
-                if self.board[row][col] != 0:  # Skip the empty tile (0)
-                    target_row, target_col = self.target_positions[self.board[row][col]]
-                    heuristic += abs(target_row - row) + abs(target_col - col)
-        return heuristic
+        row1, col1 = divmod(pos1, self.size)
+        row2, col2 = divmod(pos2, self.size)
+        return abs(row1 - row2) + abs(col1 - col2)
 
-    def can_move(self, row, col):
+    def get_neighbors(self, goal_positions):
         """
-        Check if the tile can be moved within the boundaries of the board.
+        Generate neighboring board states by moving the empty tile in all possible directions.
         """
-        return 0 <= row < self.rows and 0 <= col < self.cols
+        neighbors = []
+        size = self.size
+        row, col = divmod(self.empty_pos, size)
+        moves = [(-1, 0, 'down'), (1, 0, 'up'), (0, -1, 'right'), (0, 1, 'left')]
 
-    def move_tile(self, new_empty_position):
-        """
-        Perform the move by swapping the empty tile with a neighboring tile.
-        """
-        new_board = [row[:] for row in self.board]  # Deep copy the current board
-        zero_row, zero_col = self.empty_position
-        new_row, new_col = new_empty_position
-        # Swap empty tile with the target tile
-        new_board[zero_row][zero_col], new_board[new_row][new_col] = new_board[new_row][new_col], new_board[zero_row][
-            zero_col]
-        return Board(new_board, self.target_positions, new_empty_position)
-
-    def print_board(self):
-        """
-        Print the current state of the board.
-        """
-        for row in self.board:
-            print(row)
-        print()
-
-    # Comparison methods for comparing boards based on their heuristic
-    def __lt__(self, other):
-        return self.heuristic < other.heuristic
-
-    def __eq__(self, other):
-        return self.heuristic == other.heuristic
-
-    def __repr__(self):
-        return f"Board(Heuristic={self.heuristic})"
+        for dr, dc, action in moves:
+            new_row, new_col = row + dr, col + dc
+            if 0 <= new_row < size and 0 <= new_col < size:
+                new_empty_pos = new_row * size + new_col
+                new_board = self.board.copy()
+                # Swap the empty tile with the adjacent tile
+                new_board[self.empty_pos], new_board[new_empty_pos] = new_board[new_empty_pos], new_board[
+                    self.empty_pos]
+                moved_tile = new_board[self.empty_pos]  # Tile that was moved into the empty position
+                # Update heuristic incrementally
+                old_distance = self.manhattan_distance(new_empty_pos, goal_positions[moved_tile])
+                new_distance = self.manhattan_distance(self.empty_pos, goal_positions[moved_tile])
+                new_heuristic = self.heuristic - old_distance + new_distance
+                neighbor = Board(new_board, new_empty_pos, new_heuristic, move=action, depth=self.depth + 1)
+                neighbors.append(neighbor)
+        return neighbors
 
 
-def is_solvable(board, rows, empty_row, target_empty_row):
+def compute_heuristic(board, goal_positions):
     """
-    Check if a puzzle is solvable based on the number of inversions.
+    Calculate the total Manhattan distance for the current board state.
     """
-    flat_list = [tile for row in board for tile in row if tile != 0]
-    inversions = 0
-    for i in range(len(flat_list)):
-        for j in range(i + 1, len(flat_list)):
-            if flat_list[i] > flat_list[j]:
-                inversions += 1
-    # If the grid width is odd, return true if the number of inversions is even.
-    if rows & 1:
-        return inversions % 2 == 0
-    else:
-        # If the grid width is even, the puzzle is solvable if:
-        # - the blank is on an even row counting from the bottom and the number of inversions is odd, or
-        # - the blank is on an odd row counting from the bottom and the number of inversions is even.
-        empty_row_index = target_empty_row - empty_row - 1
-        return (inversions % 2 == 0) if (empty_row_index % 2 == 1) else (inversions % 2 == 1)
-
-
-def initialize_board_and_targets(rows, cols, k, board):
-    """
-    Initialize the target positions of all tiles, and return the dictionary of targets,
-    the initial zero position, and the target zero position.
-    """
-    initial_empty_position = None
-    target_empty_position = (k // rows, k % rows) if not k == -1 else (rows - 1, rows - 1)
-    target_positions = {}
-    tile_num = 1
-
-    for row in range(rows):
-        for col in range(cols):
-            if board[row][col] == 0:
-                initial_empty_position = (row, col)  # Store the initial empty position
-            if (row, col) != target_empty_position:
-                target_positions[tile_num] = (row, col)
-                tile_num += 1
-    target_positions[0] = target_empty_position  # Add the target position for empty tile
-
-    return target_positions, initial_empty_position
-
-
-def search(board, bound, directions):
-    """
-    Iterative DFS function using a stack with bounded f-cost.
-    """
-    # Stack contains tuples of (board, g, path)
-    stack = [(board, 0, [])]  # g = 0 at the start, path is empty
-
-    min_cost = float('inf')
-
-    while stack:
-        current_board, g, path = stack.pop()
-
-        f = g + current_board.heuristic
-
-        # If f exceeds the bound, update the minimum cost seen
-        if f > bound:
-            min_cost = min(min_cost, f)
+    heuristic = 0
+    size = int(math.sqrt(len(board)))
+    for index, tile in enumerate(board):
+        if tile == 0:
             continue
-
-        # If the goal is reached, return the solution
-        if current_board.heuristic == 0:
-            return True, path
-
-        # Expand the current board and push neighbors onto the stack
-        for (x, y), direction in directions.items():
-            new_row, new_col = current_board.empty_position[0] + x, current_board.empty_position[1] + y
-
-            if current_board.can_move(new_row, new_col):
-                new_empty_position = (new_row, new_col)
-                new_board = current_board.move_tile(new_empty_position)
-
-                # Push the new board state onto the stack
-                stack.append((new_board, g + 1, path + [direction]))
-
-    return min_cost, None
+        goal_index = goal_positions[tile]
+        heuristic += abs((index // size) - (goal_index // size)) + abs((index % size) - (goal_index % size))
+    return heuristic
 
 
-def solve_puzzle_ida_star(board):
+def is_solvable(board, size, empty_pos, goal_empty_pos):
     """
-    Solve the puzzle using IDA* (Iterative Deepening A*) with an explicit stack.
+    Determine if the given puzzle is solvable.
     """
-    directions = {
-        (0, 1): 'left',
-        (1, 0): 'up',
-        (-1, 0): 'down',
-        (0, -1): 'right'
-    }
+    flat_board = [tile for tile in board if tile != 0]
+    inversions = 0
+    for i in range(len(flat_board)):
+        for j in range(i + 1, len(flat_board)):
+            if flat_board[i] > flat_board[j]:
+                inversions += 1
+    if size & 1:
+        return not inversions & 1
+    else:
+        empty_row = empty_pos // size
+        empty_row_from_bottom = (goal_empty_pos // size) - empty_row - 1
+        return inversions & 1 if not empty_row_from_bottom & 1 else not inversions & 1
 
-    # Start IDA* with the initial bound equal to the heuristic value of the initial board
-    bound = board.heuristic
 
+def ida_star(root, goal_positions):
+    """
+    Perform the IDA* search to solve the puzzle.
+    """
+    bound = root.heuristic
+    path = [root]
     while True:
-        result, path = search(board, bound, directions)
-
-        if result is True:  # Solution found
-            return path
-
-        if result == float('inf'):  # No solution exists
+        t = search(path, 0, bound, goal_positions)
+        if t == 'FOUND':
+            return [node.move for node in path[1:]]  # Exclude the initial state
+        if t == float('inf'):
             return None
+        bound = t
 
-        # Increase bound to the minimum f-cost encountered during the last iteration
-        bound = result
+
+def search(path, g, bound, goal_positions, prev=None):
+    """
+    Recursive helper function for IDA* search.
+    """
+    node = path[-1]
+    f = g + node.heuristic
+    if f > bound:
+        return f
+    if node.heuristic == 0:
+        return 'FOUND'
+    min_bound = float('inf')
+    neighbors = node.get_neighbors(goal_positions)
+    # Process neighbors in order of increasing f-cost
+    neighbors.sort(key=lambda n: n.depth + n.heuristic)
+    for neighbor in neighbors:
+        if not neighbor == prev:  # Avoid cycles
+            path.append(neighbor)
+            result = search(path, g + 1, bound, goal_positions, node.board)
+            if result == 'FOUND':
+                return 'FOUND'
+            min_bound = min(min_bound, result)
+            path.pop()
+    return min_bound
+
+
+def initialize_board(board, n, k):
+    empty_pos = board.index(0)
+    # Initialize goal positions
+    goal_positions = [0] * (n + 1)  # Index by tile number
+    empty_goal_pos = k if k != -1 else n
+    tile_num = 1
+    for pos in range(n + 1):
+        if pos == empty_goal_pos:
+            goal_positions[0] = pos  # Empty tile goal position
+        else:
+            goal_positions[tile_num] = pos
+            tile_num += 1
+    heuristic = compute_heuristic(board, goal_positions)
+    root = Board(board, empty_pos, heuristic)
+    return root, empty_pos, goal_positions
 
 
 def main():
-    # Example board setup
-    n = int(input("Enter N: "))
-    k = int(input("Enter K: "))
-    initial_board = []
+    n = int(input())
+    k = int(input())
+    size = int(math.sqrt(n + 1))
+    board = []
+    for _ in range(size):
+        row = list(map(int, input().split()))
+        board.extend(row)
 
-    rows = cols = int(math.sqrt(n + 1))
-    for _ in range(rows):
-        initial_board.append((list(map(int, input().split()))))
-    target_positions, initial_zero_position = initialize_board_and_targets(rows, cols, k, initial_board)
-    board = Board(initial_board, target_positions, initial_zero_position)
-    if not is_solvable(board.board, rows, initial_zero_position[0], target_positions[0][0]):
+    root, empty_pos, goal_positions = initialize_board(board, n, k)
+    if not is_solvable(board, size, empty_pos, goal_positions[0]):
         print(-1)
         print("Not solvable")
         return
-    # Solve the puzzle using IDA*
-    path = solve_puzzle_ida_star(board)
-
+    path = ida_star(root, goal_positions)
     if path:
         print(len(path))
-        for p in path:
-            print(p)
+        for move in path:
+            print(move)
     else:
         print(-1)
 
