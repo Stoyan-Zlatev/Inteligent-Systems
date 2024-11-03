@@ -18,30 +18,42 @@ class Board:
         row2, col2 = divmod(pos2, self.size)
         return abs(row1 - row2) + abs(col1 - col2)
 
+    def is_valid_move(self, row, col):
+        """
+        Check if the given (row, col) is a valid position
+        """
+        return 0 <= row < self.size and 0 <= col < self.size
+
+    def get_neighbor_board(self, row, col, goal_positions, action):
+        """
+        Generate neighboring board state by moving the empty tile in <action> direction
+        """
+        new_empty_pos = row * self.size + col
+        new_board = self.board.copy()
+        # Swap the empty tile with the adjacent tile
+        new_board[self.empty_pos], new_board[new_empty_pos] = new_board[new_empty_pos], new_board[
+            self.empty_pos]
+        moved_tile = new_board[self.empty_pos]  # Tile that was moved into the empty position
+        # Update heuristic incrementally
+        old_distance = self.manhattan_distance(new_empty_pos, goal_positions[moved_tile])
+        new_distance = self.manhattan_distance(self.empty_pos, goal_positions[moved_tile])
+        new_heuristic = self.heuristic - old_distance + new_distance
+        return Board(new_board, new_empty_pos, new_heuristic, move=action, depth=self.depth + 1)
+
     def get_neighbors(self, goal_positions):
         """
         Generate neighboring board states by moving the empty tile in all possible directions.
         """
         neighbors = []
-        size = self.size
-        row, col = divmod(self.empty_pos, size)
+        row, col = divmod(self.empty_pos, self.size)
         moves = [(-1, 0, 'down'), (1, 0, 'up'), (0, -1, 'right'), (0, 1, 'left')]
 
         for dr, dc, action in moves:
             new_row, new_col = row + dr, col + dc
-            if 0 <= new_row < size and 0 <= new_col < size:
-                new_empty_pos = new_row * size + new_col
-                new_board = self.board.copy()
-                # Swap the empty tile with the adjacent tile
-                new_board[self.empty_pos], new_board[new_empty_pos] = new_board[new_empty_pos], new_board[
-                    self.empty_pos]
-                moved_tile = new_board[self.empty_pos]  # Tile that was moved into the empty position
-                # Update heuristic incrementally
-                old_distance = self.manhattan_distance(new_empty_pos, goal_positions[moved_tile])
-                new_distance = self.manhattan_distance(self.empty_pos, goal_positions[moved_tile])
-                new_heuristic = self.heuristic - old_distance + new_distance
-                neighbor = Board(new_board, new_empty_pos, new_heuristic, move=action, depth=self.depth + 1)
-                neighbors.append(neighbor)
+            if not self.is_valid_move(new_row, new_col):
+                continue
+            neighbor = self.get_neighbor_board(new_row, new_col, goal_positions, action)
+            neighbors.append(neighbor)
         return neighbors
 
 
@@ -146,9 +158,12 @@ def main():
     root, empty_pos, goal_positions = initialize_board(board, n, k)
     if not is_solvable(board, size, empty_pos, goal_positions[0]):
         print(-1)
-        print("Not solvable")
         return
+    # from datetime import datetime
+    # now = datetime.now()
     path = ida_star(root, goal_positions)
+    # end = datetime.now()
+    # print("{}".format(end - now))
     if path:
         print(len(path))
         for move in path:
