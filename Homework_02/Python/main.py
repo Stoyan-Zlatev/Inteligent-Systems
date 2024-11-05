@@ -16,11 +16,17 @@ class NQueensSolver:
 
     def _initialize_board(self) -> None:
         """Initialize queens with a knight-like pattern to reduce initial conflicts"""
-        for col in range(self.n):
-            row = (col * 2) % self.n
-            self._place_queen(col, row)
+        col = 1
+        for row in range(self.n):
+            self.queens[col] = row
+            self.row_conflicts[row] += 1
+            self.main_diag_conflicts[col - row + self.n - 1] += 1
+            self.anti_diag_conflicts[col + row] += 1
+            col += 2
+            if col >= self.n:
+                col = 0
 
-    def _place_queen(self, col, row) -> None:
+    def _place_queen(self, col: int, row: int) -> None:
         """Places a queen at (row, col) and updates conflict caches."""
         if not self.queens[col] == -1:  # If a queen is already placed there, remove it first
             self._remove_queen(col, self.queens[col])
@@ -31,10 +37,9 @@ class NQueensSolver:
         self.main_diag_conflicts[row - col + self.n - 1] += 1
         self.anti_diag_conflicts[row + col] += 1
 
-    def _remove_queen(self, col, row) -> None:
+    def _remove_queen(self, col: int, row: int) -> None:
         """Removes a queen from (row, col) and updates conflict caches."""
         # Decrease conflicts caused by placing a queen at new row
-        self.queens[col] = -1
         self.row_conflicts[row] -= 1
         self.main_diag_conflicts[row - col + self.n - 1] -= 1
         self.anti_diag_conflicts[row + col] -= 1
@@ -49,32 +54,19 @@ class NQueensSolver:
         # Subtract 3 if there's already a queen in (row, col)
         return conflicts - (self.queens[col] == row) * 3
 
-    def _get_col_with_max_conflicts(self) -> Optional[int]:
-        """Returns the column with the maximum conflicts for its queen."""
-        max_conflict_cols: List[int] = []
-        max_conflicts: int = -1
-        for col in range(self.n):
-            row = self.queens[col]
-            conflicts = self._get_conflicts_count(row, col)
-            if conflicts > max_conflicts:
-                max_conflicts = conflicts
-                max_conflict_cols = [col]
-            elif conflicts == max_conflicts:
-                max_conflict_cols.append(col)
-        return random.choice(max_conflict_cols) if max_conflict_cols else None
+    def _get_col_with_max_conflicts(self) -> int:
+        """Return the column with the most conflicts for its queen."""
+        cols_conflicts = [(col, self._get_conflicts_count(self.queens[col], col)) for col in range(self.n)]
+        max_conflicts = max(cols_conflicts, key=lambda x: x[1])[1]
+        max_conflict_cols = [col for col, conflicts in cols_conflicts if conflicts == max_conflicts]
+        return random.choice(max_conflict_cols)
 
-    def _get_row_with_min_conflict(self, col: int) -> Optional[int]:
-        """Finds the row with minimum conflicts in the given column."""
-        min_conflict_rows: List[int] = []
-        min_conflicts: float = float('inf')
-        for row in range(self.n):
-            conflicts = self._get_conflicts_count(row, col)
-            if conflicts < min_conflicts:
-                min_conflicts = conflicts
-                min_conflict_rows = [row]
-            elif conflicts == min_conflicts:
-                min_conflict_rows.append(row)
-        return random.choice(min_conflict_rows) if min_conflict_rows else None
+    def _get_row_with_min_conflict(self, col: int) -> int:
+        """Return the row with the minimum conflicts in the given column."""
+        rows_conflicts = [(row, self._get_conflicts_count(row, col)) for row in range(self.n)]
+        min_conflicts = min(rows_conflicts, key=lambda x: x[1])[1]
+        min_conflict_rows = [row for row, conflicts in rows_conflicts if conflicts == min_conflicts]
+        return random.choice(min_conflict_rows)
 
     def _has_conflicts(self) -> bool:
         """Checks if there are any conflicts on the board using cached data."""
@@ -97,7 +89,7 @@ class NQueensSolver:
 
 
 def print_board(solution: List[int], n: int) -> None:
-    board: List[List[str]]  = [['-' for _ in range(n)] for _ in range(n)]
+    board: List[List[str]] = [['-' for _ in range(n)] for _ in range(n)]
 
     # Place '*' on the board according to the positions in the solution
     for col, row in enumerate(solution):
@@ -119,7 +111,8 @@ def main():
         if n <= 100:
             print_board(solution, n)
         else:
-            print("Solution:", solution)
+            #print("Solution:", solution)
+            print(len(set(solution)))
     else:
         print(-1)
     print("{}".format(end - now))
