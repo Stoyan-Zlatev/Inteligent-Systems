@@ -69,8 +69,15 @@ def single_point_crossover(a: Genome, b: Genome) -> Tuple[Genome, Genome]:
 
 def mutation(genome: Genome, probability: float = 0.05) -> Genome:
     """Mutate a genome by flipping genes with a given probability."""
-    return [gene if random.random() > probability else 1 - gene for gene in genome]
+    # if random.random() > probability:
+    #     return genome  # No mutation
 
+    # Select random indices for chunk boundaries and reverse the chunk
+    # start, end = sorted(random.sample(range(len(genome)), 2))
+    # genome[start:end + 1] = reversed(genome[start:end + 1])
+    #genome[1:-1] = reversed(genome[1:-1])
+
+    return [gene if random.random() > probability else 1 - gene for gene in genome]
 
 def run_evolution(
         max_weight: int,
@@ -130,7 +137,7 @@ def main():
         max_weight=max_weight,
         items=items,
         population_size=len(items),
-        generations=500,  # Adjust generation limit as needed
+        generations=10000,  # Adjust generation limit as needed
         fitness_limit=1130 if option == 'short' else 5119,  # Known optimal for "test data"
         mutation_probability=0.03
     )
