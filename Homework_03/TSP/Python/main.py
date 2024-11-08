@@ -169,15 +169,27 @@ class GeneticAlgorithm:
         """
         return [Genome(cities) for _ in range(population_size)]
 
-    def selection_pair(self) -> Tuple[Genome, Genome]:
+    def tournament_selection(self, k: int = 3) -> Genome:
         """
-        Select two genomes from the population for crossover, with selection probability weighted by fitness.
+        Select a single genome using tournament selection.
+
+        Args:
+            k (int): Number of genomes to sample from the population for each tournament.
 
         Returns:
-            Tuple[Genome, Genome]: Two selected genomes to be used as parents in crossover.
+            Genome: The genome with the highest fitness among the selected sample.
         """
-        weights = [genome.fitness for genome in self.population]
-        return random.choices(self.population, weights=weights, k=2)
+        selected = random.sample(self.population, k)
+        return max(selected, key=lambda genome: genome.fitness)
+
+    def selection_pair_tournament(self) -> Tuple[Genome, Genome]:
+        """
+        Select a pair of genomes for crossover using tournament selection.
+
+        Returns:
+            Tuple[Genome, Genome]: A pair of genomes chosen based on their fitness.
+        """
+        return self.tournament_selection(), self.tournament_selection()
 
     def single_point_crossover(self, parent1: Genome, parent2: Genome) -> Tuple[Genome, Genome]:
         """
@@ -213,48 +225,69 @@ class GeneticAlgorithm:
             genome.route[i], genome.route[j] = genome.route[j], genome.route[i]
             genome.fitness = genome.calculate_fitness(self.cities)
 
-    def evolve_population(self) -> None:
+    def evolve_population_with_elitism(self, elite_size: int = 2) -> None:
         """
-        Evolve the population by selecting pairs, performing crossover, and mutating offspring.
+        Create a new population by retaining top genomes (elitism) and using
+        tournament selection, crossover, and mutation to fill the population.
 
-        Generates a new population of genomes by creating offspring and retaining only the top individuals
-        with the highest fitness for the next generation.
+        Args:
+           elite_size (int): Number of top genomes to retain in the new generation.
+
+        Modifies:
+           self.population: Updates the population with the new generation of genomes.
+           self.best_fitness_history: Appends the best fitness value of the new generation.
         """
-        new_population = []
-        for _ in range(self.population_size // 2):
-            parent1, parent2 = self.selection_pair()
+        new_population = sorted(self.population, key=lambda genome: genome.fitness, reverse=True)[:elite_size]
+        while len(new_population) < self.population_size:
+            parent1, parent2 = self.selection_pair_tournament()
             child1, child2 = self.single_point_crossover(parent1, parent2)
             self.mutate(child1)
             self.mutate(child2)
             new_population.extend([child1, child2])
-        self.population = sorted(new_population, key=lambda genome: genome.fitness, reverse=True)[:self.population_size]
+        self.population = sorted(new_population, key=lambda genome: genome.fitness, reverse=True)
         self.best_fitness_history.append(self.population[0].fitness)
 
-    def run_evolution(self, fitness_threshold: float = 1e-8) -> Genome:
+    def run_evolution(self, fitness_threshold: float = 1e-8, patience: int = 25) -> Genome:
         """
-        Run the genetic algorithm to optimize the TSP route, until reaching the stopping condition or max generations.
+        Run the genetic algorithm with a derivative-based stopping condition.
 
         Args:
-            fitness_threshold (float): The minimum change in best fitness between generations to continue running.
-
+            fitness_threshold (float): Minimum average change in fitness over recent generations to continue running.
+            patience (int): Number of generations with no change of fitness before stopping
         Returns:
             Genome: The best genome found in the population after evolution.
         """
-        for generation in range(self.generations):
-            self.evolve_population()
+        # List to store the recent fitness improvements for calculating moving average
+        fitness_improvements = []
 
-            # Track fitness improvements and apply derivative-based stopping condition
-            if generation > 1:
+        for generation in range(self.generations):
+            self.evolve_population_with_elitism()
+
+            # Track fitness change from the last generation
+            if generation > 0:
                 fitness_change = abs(self.best_fitness_history[-1] - self.best_fitness_history[-2])
-                if fitness_change < fitness_threshold:
-                    print(f"Stopping early at generation {generation} due to small fitness improvement.")
+                fitness_improvements.append(fitness_change)
+
+                # Only keep the last `patience` entries
+                if len(fitness_improvements) > patience:
+                    fitness_improvements.pop(0)
+
+                # Calculate the average fitness change over the recent `patience` generations
+                avg_fitness_change = sum(fitness_improvements) / len(fitness_improvements)
+
+                # Check if the recent improvements are too small, implying convergence
+                if avg_fitness_change < fitness_threshold and len(fitness_improvements) == patience:
+                    print(
+                        f"Stopping early at generation {generation} due to minimal improvement over {patience} generations.")
                     break
 
-            # Logging for debugging
+            # Optional: Logging for monitoring progress
             if generation % 10 == 0:
-                print(f"Generation {generation}: Best fitness = {self.best_fitness_history[-1]}")
+                print(f"Generation {generation}: Best fitness = {self.best_fitness_history[-1]}, "
+                      f"Avg fitness change = {avg_fitness_change if generation > 1 else 'N/A'}")
 
-        return self.population[0]  # Return the best genome found
+        return self.population[0]  # Return the best genome found of generations to tolerate small improvements before stopping.
+
 
 
 def main():
@@ -265,7 +298,7 @@ def main():
     """
     cities = load_data("../TestData/uk12_name.csv", "../TestData/uk12_xy.csv")
     visualize_map(cities)
-    ga = GeneticAlgorithm(cities, population_size=100, generations=1000, mutation_probability=0.05)
+    ga = GeneticAlgorithm(cities, population_size=1000, generations=1500, mutation_probability=0.2)
     best_genome = ga.run_evolution()
 
     # Output the best route found
