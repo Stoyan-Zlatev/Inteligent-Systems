@@ -1,3 +1,4 @@
+import time
 from collections import namedtuple
 import random
 from typing import List, Tuple, Optional
@@ -100,21 +101,31 @@ class Genome:
         """
         self.route = list(range(len(cities)))
         random.shuffle(self.route)
-        self.fitness = self.calculate_fitness(cities)
+        self.distance = self.calculate_distance(cities)
+        self.fitness = self.calculate_fitness()
 
-    def calculate_fitness(self, cities: List[City]) -> float:
+    def calculate_distance(self, cities: List[City]) -> float:
         """
-        Calculate the fitness score based on the total route distance.
+        Calculate the  total route distance.
 
         Args:
             cities (List[City]): The list of cities to calculate the route distance for.
 
         Returns:
-            float: The fitness score (inverse of total distance).
+            float: The total distance.
         """
         distance = sum(calculate_distance(cities[self.route[i]], cities[self.route[i + 1]])
                        for i in range(len(self.route) - 1))
-        return 1 / (distance + 1)  # Adding 1 to avoid division by zero
+        return distance
+
+    def calculate_fitness(self) -> float:
+        """
+        Calculate the fitness score based on the total route distance.
+
+        Returns:
+            float: The fitness score (inverse of total distance).
+        """
+        return 1 / (self.distance + 1)  # Adding 1 to avoid division by zero
 
 
 class GeneticAlgorithm:
@@ -209,8 +220,10 @@ class GeneticAlgorithm:
         child2 = Genome(self.cities)
         child1.route = child1_route
         child2.route = child2_route
-        child1.fitness = child1.calculate_fitness(self.cities)
-        child2.fitness = child2.calculate_fitness(self.cities)
+        child1.distance = child1.calculate_distance(self.cities)
+        child2.distance = child2.calculate_distance(self.cities)
+        child1.fitness = child1.calculate_fitness()
+        child2.fitness = child2.calculate_fitness()
         return child1, child2
 
     def mutate(self, genome: Genome) -> None:
@@ -223,7 +236,8 @@ class GeneticAlgorithm:
         if random.random() < self.mutation_probability:
             i, j = random.sample(range(len(genome.route)), 2)
             genome.route[i], genome.route[j] = genome.route[j], genome.route[i]
-            genome.fitness = genome.calculate_fitness(self.cities)
+            genome.distance = genome.calculate_distance(self.cities)
+            genome.fitness = genome.calculate_fitness()
 
     def evolve_population_with_elitism(self, elite_size: int = 2) -> None:
         """
@@ -286,9 +300,29 @@ class GeneticAlgorithm:
                 print(f"Generation {generation}: Best fitness = {self.best_fitness_history[-1]}, "
                       f"Avg fitness change = {avg_fitness_change if generation > 1 else 'N/A'}")
 
-        return self.population[0]  # Return the best genome found of generations to tolerate small improvements before stopping.
+        return self.population[
+            0]  # Return the best genome found of generations to tolerate small improvements before stopping.
 
+def generate_random_cities(N: int, x_range: Tuple[int, int] = (0, 100), y_range: Tuple[int, int] = (0, 100)) -> List[
+    City]:
+    """
+    Generate a list of cities with random coordinates.
 
+    Args:
+        N (int): Number of cities to generate.
+        x_range (Tuple[int, int]): Range for x-coordinate values (default is (0, 100)).
+        y_range (Tuple[int, int]): Range for y-coordinate values (default is (0, 100)).
+
+    Returns:
+        List[City]: A list of City objects with random coordinates.
+    """
+    cities = []
+    for i in range(N):
+        name = f"City {i + 1}"
+        x = random.uniform(*x_range)
+        y = random.uniform(*y_range)
+        cities.append(City(index=i, name=name, x=x, y=y))
+    return cities
 
 def main():
     """
@@ -296,14 +330,21 @@ def main():
 
     Loads city data, initializes and runs the genetic algorithm, and visualizes the best route found.
     """
-    cities = load_data("../TestData/uk12_name.csv", "../TestData/uk12_xy.csv")
-    visualize_map(cities)
-    ga = GeneticAlgorithm(cities, population_size=1000, generations=1500, mutation_probability=0.2)
+    data = input("Enter 'UK12' or N: ")
+    start = time.time()
+    if data == 'UK12':
+        cities = load_data("../TestData/uk12_name.csv", "../TestData/uk12_xy.csv")
+    else:
+        cities = generate_random_cities(int(data))
+    # visualize_map(cities)
+    ga = GeneticAlgorithm(cities, population_size=500, generations=1500, mutation_probability=0.2)
     best_genome = ga.run_evolution()
 
     # Output the best route found
     best_route = [cities[i].name for i in best_genome.route]
     print("Best route found:", best_route)
+    print("Best fitness:", best_genome.distance)
+    print('%s s' % (time.time() - start))
     visualize_map(cities, best_genome.route)
 
 
