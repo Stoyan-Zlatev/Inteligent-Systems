@@ -313,9 +313,9 @@ func generateRandomCities(N int, xRange, yRange [2]float64) []City {
 func main() {
 	rand.Seed(time.Now().UnixNano())
 	fmt.Print("Enter 'UK12' or a value for N (<=100): ")
-	start := time.Now()
 	var input string
 	fmt.Scan(&input)
+	start := time.Now()
 
 	var cities []City // Declare cities outside of the conditional blocks
 
