@@ -310,6 +310,19 @@ func generateRandomCities(N int, xRange, yRange [2]float64) []City {
 	return cities
 }
 
+// print the route through cities
+func printRoute(cities []City, route []int) {
+    fmt.Print("[")
+	for i, idx := range route {
+		fmt.Print(cities[idx].Name)
+		if i < len(route) - 1 {
+		    fmt.Print(" -> ")
+		}
+	}
+fmt.Print("]")
+fmt.Println()
+}
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 	fmt.Print("Enter 'UK12' or a value for N (<=100): ")
@@ -347,20 +360,15 @@ func main() {
 	// Now `cities` is available for use in the GeneticAlgorithm
 	ga := GeneticAlgorithm{
 		Cities:              cities,
-		PopulationSize:      500,
+		PopulationSize:      5000,
 		Generations:         1500,
 		MutationProbability: 0.2,
 	}
 
 	ga.InitializePopulation()
-	bestGenome := ga.RunEvolution(1e-8, 25)
+	bestGenome := ga.RunEvolution(1e-15, 25)
 
-	bestRouteNames := make([]string, len(bestGenome.Route))
-	for i, idx := range bestGenome.Route {
-		bestRouteNames[i] = cities[idx].Name
-	}
-
-	fmt.Println("Best route found:", bestRouteNames)
+	printRoute(cities, bestGenome.Route)
 	fmt.Printf("Best distance: %.2f\n", bestGenome.Distance)
 	fmt.Printf("Execution time: %s\n", time.Since(start))
 }
