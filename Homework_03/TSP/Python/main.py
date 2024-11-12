@@ -337,7 +337,7 @@ def main():
     else:
         cities = generate_random_cities(int(data))
     # visualize_map(cities)
-    ga = GeneticAlgorithm(cities, population_size=500, generations=1500, mutation_probability=0.2)
+    ga = GeneticAlgorithm(cities, population_size=10000, generations=1500, mutation_probability=0.2)
     best_genome = ga.run_evolution()
 
     # Output the best route found
