@@ -73,17 +73,17 @@ class TicTacToe:
         player : str
             The player's marker, 'X' or 'O'.
         """
-        i, j = move
-        self.board[i][j] = player
+        curr_row, curr_col = move
+        self.board[curr_row][curr_col] = player
         self.available_moves.remove(move)
 
         # Update the cache for the winning check
         value = 1 if player == 'X' else -1
-        self.cache["rows"][i] += value
-        self.cache["cols"][j] += value
-        if i == j:
+        self.cache["rows"][curr_row] += value
+        self.cache["cols"][curr_col] += value
+        if curr_row == curr_col:
             self.cache["diag1"] += value
-        if i + j == 2:
+        if curr_row + curr_col == 2:
             self.cache["diag2"] += value
 
     def undo_move(self, move: Tuple[int, int]) -> None:
@@ -95,18 +95,18 @@ class TicTacToe:
         move : Tuple[int, int]
             The (row, col) position to clear on the board.
         """
-        i, j = move
-        player = self.board[i][j]
-        self.board[i][j] = ' '
+        curr_row, curr_col = move
+        player = self.board[curr_row][curr_col]
+        self.board[curr_row][curr_col] = ' '
         self.available_moves.add(move)
 
         # Update the cache for undoing the move
         value = 1 if player == 'X' else -1
-        self.cache["rows"][i] -= value
-        self.cache["cols"][j] -= value
-        if i == j:
+        self.cache["rows"][curr_row] -= value
+        self.cache["cols"][curr_col] -= value
+        if curr_row == curr_col:
             self.cache["diag1"] -= value
-        if i + j == 2:
+        if curr_row + curr_col == 2:
             self.cache["diag2"] -= value
 
     def minimax(self, is_maximizing: bool, alpha: float, beta: float) -> int:
