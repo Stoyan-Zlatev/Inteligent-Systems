@@ -138,10 +138,10 @@ class TicTacToe:
             max_eval = -math.inf
             for move in list(self.available_moves):
                 self.make_move(move, self.computer)
-                eval = self.minimax(False, alpha, beta)
+                curr_eval = self.minimax(False, alpha, beta)
                 self.undo_move(move)
-                max_eval = max(max_eval, eval)
-                alpha = max(alpha, eval)
+                max_eval = max(max_eval, curr_eval)
+                alpha = max(alpha, curr_eval)
                 if beta <= alpha:
                     break
             return max_eval
@@ -149,10 +149,10 @@ class TicTacToe:
             min_eval = math.inf
             for move in list(self.available_moves):
                 self.make_move(move, self.player)
-                eval = self.minimax(True, alpha, beta)
+                curr_eval = self.minimax(True, alpha, beta)
                 self.undo_move(move)
-                min_eval = min(min_eval, eval)
-                beta = min(beta, eval)
+                min_eval = min(min_eval, curr_eval)
+                beta = min(beta, curr_eval)
                 if beta <= alpha:
                     break
             return min_eval
